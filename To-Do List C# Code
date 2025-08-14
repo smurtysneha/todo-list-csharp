@@ -1,0 +1,218 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+
+enum Priority
+{
+    Low,
+    Medium,
+    High
+}
+
+class TaskItem
+{
+    public int Id { get; set; }
+    public string Description { get; set; }
+    public Priority Priority { get; set; }
+    public bool IsCompleted { get; set; }
+
+    public override string ToString()
+    {
+        string status = IsCompleted ? "[Done]" : "[Pending]";
+        return $"{Id}. {status} ({Priority}) - {Description}";
+    }
+
+    public string ToFileString()
+    {
+        return $"{Id}|{Description}|{Priority}|{IsCompleted}";
+    }
+
+    public static TaskItem FromFileString(string line)
+    {
+        var parts = line.Split('|');
+        return new TaskItem
+        {
+            Id = int.Parse(parts[0]),
+            Description = parts[1],
+            Priority = Enum.Parse<Priority>(parts[2]),
+            IsCompleted = bool.Parse(parts[3])
+        };
+    }
+}
+
+class ToDoListApp
+{
+    private const string DataFile = "tasks.txt";
+    private List<TaskItem> tasks = new List<TaskItem>();
+
+    static void Main()
+    {
+        var app = new ToDoListApp();
+        app.LoadTasks();
+        app.Run();
+    }
+
+    void Run()
+    {
+        while (true)
+        {
+            Console.Clear();
+            Console.WriteLine("=== To-Do List ===");
+            DisplayTasks();
+
+            Console.WriteLine("\nCommands: add, complete, delete, exit");
+            Console.Write("Enter command: ");
+            var input = Console.ReadLine()?.Trim().ToLower();
+
+            switch (input)
+            {
+                case "add":
+                    AddTask();
+                    break;
+                case "complete":
+                    CompleteTask();
+                    break;
+                case "delete":
+                    DeleteTask();
+                    break;
+                case "exit":
+                    SaveTasks();
+                    Console.WriteLine("Goodbye!");
+                    return;
+                default:
+                    Console.WriteLine("Unknown command.");
+                    Pause();
+                    break;
+            }
+        }
+    }
+
+    void DisplayTasks()
+    {
+        if (tasks.Count == 0)
+        {
+            Console.WriteLine("No tasks yet.");
+            return;
+        }
+
+        var sorted = tasks
+            .OrderBy(t => t.IsCompleted)
+            .ThenByDescending(t => t.Priority)
+            .ThenBy(t => t.Id);
+
+        foreach (var task in sorted)
+        {
+            Console.WriteLine(task);
+        }
+    }
+
+    void AddTask()
+    {
+        Console.Write("Enter task description: ");
+        var desc = Console.ReadLine();
+        if (string.IsNullOrWhiteSpace(desc))
+        {
+            Console.WriteLine("Description can't be empty.");
+            Pause();
+            return;
+        }
+
+        Console.WriteLine("Select priority: 0 - Low, 1 - Medium, 2 - High");
+        Console.Write("Your choice: ");
+        if (!int.TryParse(Console.ReadLine(), out int prioInt) || prioInt < 0 || prioInt > 2)
+        {
+            Console.WriteLine("Invalid priority.");
+            Pause();
+            return;
+        }
+
+        var task = new TaskItem
+        {
+            Id = tasks.Count > 0 ? tasks.Max(t => t.Id) + 1 : 1,
+            Description = desc.Trim(),
+            Priority = (Priority)prioInt,
+            IsCompleted = false
+        };
+
+        tasks.Add(task);
+        SaveTasks();
+        Console.WriteLine("Task added!");
+        Pause();
+    }
+
+    void CompleteTask()
+    {
+        Console.Write("Enter task ID to mark as completed: ");
+        if (!int.TryParse(Console.ReadLine(), out int id))
+        {
+            Console.WriteLine("Invalid ID.");
+            Pause();
+            return;
+        }
+
+        var task = tasks.FirstOrDefault(t => t.Id == id);
+        if (task == null)
+        {
+            Console.WriteLine("Task not found.");
+            Pause();
+            return;
+        }
+
+        task.IsCompleted = true;
+        SaveTasks();
+        Console.WriteLine("Task marked as completed.");
+        Pause();
+    }
+
+    void DeleteTask()
+    {
+        Console.Write("Enter task ID to delete: ");
+        if (!int.TryParse(Console.ReadLine(), out int id))
+        {
+            Console.WriteLine("Invalid ID.");
+            Pause();
+            return;
+        }
+
+        var task = tasks.FirstOrDefault(t => t.Id == id);
+        if (task == null)
+        {
+            Console.WriteLine("Task not found.");
+            Pause();
+            return;
+        }
+
+        tasks.Remove(task);
+        SaveTasks();
+        Console.WriteLine("Task deleted.");
+        Pause();
+    }
+
+    void LoadTasks()
+    {
+        if (!File.Exists(DataFile)) return;
+
+        try
+        {
+            var lines = File.ReadAllLines(DataFile);
+            tasks = lines.Select(TaskItem.FromFileString).ToList();
+        }
+        catch
+        {
+            tasks = new List<TaskItem>();
+        }
+    }
+
+    void SaveTasks()
+    {
+        var lines = tasks.Select(t => t.ToFileString()).ToArray();
+        File.WriteAllLines(DataFile, lines);
+    }
+
+    void Pause()
+    {
+        Console.WriteLine("\nPress Enter to continue...");
+        Console.ReadLine();
+    }
+}
